@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  AWS CloudFormation Template for Apache EC2 Instance
+  AWS CloudFormation Sample Template VPC_with_PublicIPs_And_DNS: Sample template
+  that creates a VPC with DNS and public IPs and private IPS enabled. This will reference 
+  the templete previously creted. Note that you are billed
+
+Parameters:
+  InstanceType: 
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - m1.large
+      - t2.small
+      - t3.micro
+    Description: Enter Instanse Type from the options provided. Default is t2.micro.
+  KeyName: # this parameter is used to retrieve ec2 keypair
+    Description: name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      HVM64: "ami-08a0d1e16fc3f61ea"
+    us-west-1:
+      HVM64: "ami-0ca1f30768d0cf0e1"
+    us-west-2:
+      HVM64: "ami-0b20a6f09484773af"
+    eu-west-1:
+      HVM64: "ami-0551ce4d67096d606"
+    ap-northeast-1:
+      HVM64: "ami-04c913012f8977029"
+
+      
+Resources:      
+  myInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      InstanceType: !Ref InstanceType  # Instance type parameter referenced here
+      ImageId: !FindInMap  [RegionMap, !Ref AWS::Region, "HVM64"]
+      KeyName: !Ref KeyName
+      SubnetId: 
+        Fn::ImportValue: SampleNetworkCrossStack-SubnetID
+      SecurityGroupIds:
+       - Fn::ImportValue: SampleNetworkCrossStack-SecurityGroupID
+
+      Tags: 
+       - Key: "Name"
+         Value: apache-cross-stack
+      
+      UserData:
+        Fn::Base64: !Sub | # allows to pass UserData
+          #!/bin/bash 
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo '<html><body><h1 style="color:Blue;">Server launched by Elie Tachenko trusting the process </h1></body></html>' > /var/www/html/index.html
+
+  EIP:
+    Type: AWS::EC2::EIP # Allocate an Elastic IP address
+   # Properties:
+      #InstanceId: !Ref myInstance
+  MyEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref myInstance
+      EIP: !Ref EIP
+
+      
+
+Outputs:
+  PrivateIpAddress:
+    Description: Display the Private IPv4 of the EC2 myInstance
+    Value: !GetAtt myInstance.PrivateIp
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateIpAddress'
+
+  PrivateDnsName:
+    Description: Display the DNS Name of the EC2 myInstance
+    Value: !GetAtt myInstance.PrivateDnsName
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateDnsName'
+
+  InstancePublicDns:
+    Description: Public DNS name of myInstance EC2 instance
+    Value: !GetAtt myInstance.PublicDnsName  # Returns the public DNS name of the EC2 instance
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicDnsName'
+
+
+
+
+
+
+
+
+
+
